@@ -90,10 +90,14 @@ async function saveContent(name: string, baseUrl: string, url: string, content: 
 
 function extractLinks(content: string, baseUrl: string): string[] {
   const urls: string[] = []
-  const urlRegex = /\[.*?\]\((.*?)\)/g // regex to match [text](url)
+  // First, remove all image links from the content
+  const contentWithoutImages = content.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+
+  // Then match regular links
+  const urlRegex = /\[[^\]]*\]\((.*?)\)/g
   let match
   // eslint-disable-next-line no-cond-assign
-  while ((match = urlRegex.exec(content)) !== null) {
+  while ((match = urlRegex.exec(contentWithoutImages)) !== null) {
     const link = match[1]
     try {
       const absoluteUrl = new URL(link, baseUrl).href // transfer relative url to absolute
@@ -113,23 +117,25 @@ function extractLinksFromHtml(content: string, baseUrl: string): string[] {
   const root = parse(content)
   const links = root.querySelectorAll('a')
 
-  for (const link of links) {
-    const href = link.getAttribute('href')
-    if (!href)
-      continue
+  // Common image extensions to ignore
+  const imageExtensions = /\.(?:jpg|jpeg|png|gif|bmp|webp|svg|ico)$/i
 
-    try {
-      const absoluteUrl = new URL(href, baseUrl).href
-      if (absoluteUrl.startsWith(baseUrl)) {
-        urls.push(absoluteUrl)
+  links.forEach((link) => {
+    const href = link.getAttribute('href')
+    if (href && !imageExtensions.test(href)) {
+      try {
+        const absoluteUrl = new URL(href, baseUrl).href
+        if (absoluteUrl.startsWith(baseUrl)) {
+          urls.push(absoluteUrl)
+        }
+      }
+      catch (e: unknown) {
+        consola.error(`Invalid URL: ${href}\n${e}`)
       }
     }
-    catch (e: unknown) {
-      consola.warn(`Invalid URL: ${href}\n${e}`)
-    }
-  }
+  })
 
-  return Array.from(new Set(urls))
+  return urls
 }
 
 async function crawl(
