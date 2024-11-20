@@ -1,0 +1,41 @@
+{
+  "name": "jina-crawler",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "An LLM-friendly crawler from Jina.",
+  "author": "zcf0508",
+  "license": "MIT",
+  "homepage": "https://github.com/zcf0508/jina-crawler#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zcf0508/jina-crawler.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zcf0508/jina-crawler/issues"
+  },
+  "main": "dist/index.mjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "jina-crawler": "bin/jina-crawler.mjs"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "build": "unbuild",
+    "typecheck": "tsc",
+    "release": "bumpp"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^3.9.2",
+    "@types/node": "^20.17.6",
+    "bumpp": "^9.8.1",
+    "citty": "^0.1.6",
+    "consola": "^3.2.3",
+    "typescript": "^5.6.3",
+    "unbuild": "^2.0.0"
+  }
+}
