@@ -21,14 +21,6 @@ pnpm add jina-crawler
 yarn add jina-crawler
 ```
 
-## Usage
-
-You can use Jina Crawler via the command line:
-
-```bash
-jina-crawler --baseUrl <url> --name <project-name> [options]
-```
-
 ### Options
 
 - `--baseUrl`, `-u`: Target URL to crawl (required)
@@ -36,10 +28,42 @@ jina-crawler --baseUrl <url> --name <project-name> [options]
 - `--maxDepth`: Maximum depth to crawl (default: 2)
 - `--token`: Your Jina AI token (can also be set via JINA_READER_TOKEN environment variable)
 
-### Example
+## Usage
+
+You can use Jina Crawler in two ways:
+
+### 1. Quick Start with npx (No Installation Required)
 
 ```bash
-jina-crawler --baseUrl https://example.com --name my-project --maxDepth 3
+npx jina-crawler --baseUrl <url> --name <project-name> [options]
+```
+
+### 2. Project Installation (Recommended for Team Collaboration)
+
+First, install the package as a dependency:
+
+```bash
+npm install jina-crawler
+# or
+pnpm add jina-crawler
+# or
+yarn add jina-crawler
+```
+
+Then add the following to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "crawl:example": "jina-crawler --baseUrl https://example.com --name dev-crawl"
+  }
+}
+```
+
+Now you can run the crawler using:
+
+```bash
+npm run crawl:example
 ```
 
 ## Authentication
