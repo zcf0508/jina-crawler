@@ -1,5 +1,7 @@
 # Jina Crawler
 
+[![NPM version](https://img.shields.io/npm/v/jina-crawler?color=a1b858&label=)](https://www.npmjs.com/package/jina-crawler)
+
 An LLM-friendly crawler powered by Jina AI. This tool helps you crawl websites and process the content in a way that's optimized for Large Language Models.
 
 ## Features
