@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { URL } from 'node:url'
 import { consola } from 'consola'
+import { parse } from 'node-html-parser'
 
 const rateLimit = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -44,6 +45,15 @@ async function fetchContent(url: string, token?: string): Promise<string> {
   })
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}`)
+  }
+  return response.text()
+}
+
+async function fetchOriginalContent(url: string): Promise<string> {
+  consola.log(`Fetching original content from: ${url}`)
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch original content from ${url}`)
   }
   return response.text()
 }
@@ -98,6 +108,30 @@ function extractLinks(content: string, baseUrl: string): string[] {
   return Array.from(new Set(urls))
 }
 
+function extractLinksFromHtml(content: string, baseUrl: string): string[] {
+  const urls: string[] = []
+  const root = parse(content)
+  const links = root.querySelectorAll('a')
+
+  for (const link of links) {
+    const href = link.getAttribute('href')
+    if (!href)
+      continue
+
+    try {
+      const absoluteUrl = new URL(href, baseUrl).href
+      if (absoluteUrl.startsWith(baseUrl)) {
+        urls.push(absoluteUrl)
+      }
+    }
+    catch (e: unknown) {
+      consola.warn(`Invalid URL: ${href}\n${e}`)
+    }
+  }
+
+  return Array.from(new Set(urls))
+}
+
 async function crawl(
   url: string,
   name: string,
@@ -118,16 +152,35 @@ async function crawl(
   if (fs.existsSync(filePath)) {
     consola.log(`Reading existing file: ${filePath}`)
     const content = fs.readFileSync(filePath, 'utf-8')
-    const links = extractLinks(content, baseUrl)
-    await Promise.all(links.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth)))
+    const mdLinks = extractLinks(content, baseUrl)
+    await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
     return
   }
 
   requestScheduler.addRequest(async () => {
-    const content = await fetchContent(url, token)
-    await saveContent(name, baseUrl, url.split('#')[0], content)
-    const links = extractLinks(content, baseUrl)
-    await Promise.all(links.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth)))
+    // First try to get MD content from Jina as it's more reliable
+    const mdContent = await fetchContent(url, token)
+    await saveContent(name, baseUrl, url.split('#')[0], mdContent)
+    const mdLinks = extractLinks(mdContent, baseUrl)
+
+    try {
+      // Try to fetch and parse original HTML content
+      const originalContent = await fetchOriginalContent(url)
+      const htmlLinks = extractLinksFromHtml(originalContent, baseUrl)
+
+      // If HTML parsing was successful and found links, combine them with MD links
+      if (htmlLinks.length > 0) {
+        const allLinks = Array.from(new Set([...mdLinks, ...htmlLinks]))
+        await Promise.all(allLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
+        return
+      }
+    }
+    catch (e) {
+      consola.warn(`Failed to fetch/parse original content from ${url}, falling back to MD links only: ${e}`)
+    }
+
+    // Fallback: use only MD links if HTML parsing failed or found no links
+    await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
   })
 }
 
