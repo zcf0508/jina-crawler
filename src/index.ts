@@ -88,7 +88,7 @@ async function saveContent(name: string, baseUrl: string, url: string, content: 
   fs.writeFileSync(filePath, content, 'utf-8')
 }
 
-function extractLinks(content: string, baseUrl: string): string[] {
+export function extractLinks(content: string, baseUrl: string): string[] {
   const urls: string[] = []
   // First, remove all image links from the content
   const contentWithoutImages = content.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
@@ -112,7 +112,7 @@ function extractLinks(content: string, baseUrl: string): string[] {
   return Array.from(new Set(urls))
 }
 
-function extractLinksFromHtml(content: string, baseUrl: string): string[] {
+export function extractLinksFromHtml(content: string, baseUrl: string): string[] {
   const urls: string[] = []
   const root = parse(content)
   const links = root.querySelectorAll('a')
