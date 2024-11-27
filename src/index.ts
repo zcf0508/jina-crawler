@@ -1,7 +1,11 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { consola } from 'consola'
+import { got } from 'got-cjs'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import { parse } from 'node-html-parser'
 
 const rateLimit = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -34,28 +38,37 @@ class RequestScheduler {
 
 const requestScheduler = new RequestScheduler()
 
+const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy
+const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy
+
+const httpAgent = httpProxy ? new HttpProxyAgent(httpProxy) : undefined
+const httpsAgent = httpsProxy ? new HttpsProxyAgent(httpsProxy) : undefined
+
 async function fetchContent(url: string, token?: string): Promise<string> {
   const proxyUrl = `https://r.jina.ai${url.startsWith('/') ? '' : '/'}${url}`
   consola.log(`Fetching content from: ${proxyUrl}`)
-  const response = await fetch(proxyUrl, {
-    method: 'GET',
+
+  const response = await got(proxyUrl, {
+    agent: {
+      http: httpAgent,
+      https: httpsAgent,
+    },
     headers: {
       Authorization: token ? `Bearer ${token}` : '',
     },
   })
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}`)
-  }
-  return response.text()
+  return response.body
 }
 
 async function fetchOriginalContent(url: string): Promise<string> {
   consola.log(`Fetching original content from: ${url}`)
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch original content from ${url}`)
-  }
-  return response.text()
+  const response = await got(url, {
+    agent: {
+      http: httpAgent,
+      https: httpsAgent,
+    },
+  })
+  return response.body
 }
 
 async function saveContent(name: string, baseUrl: string, url: string, content: string): Promise<void> {
