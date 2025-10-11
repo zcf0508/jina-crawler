@@ -101,6 +101,34 @@ async function saveContent(name: string, baseUrl: string, url: string, content: 
   fs.writeFileSync(filePath, content, 'utf-8')
 }
 
+/**
+ * Check if a URL is within the scope of the base URL
+ * @param url - The URL to check
+ * @param baseUrl - The base URL to compare against
+ * @returns true if the URL is within the base URL scope
+ */
+function isUrlInScope(url: string, baseUrl: string): boolean {
+  const urlObj = new URL(url)
+  const baseUrlObj = new URL(baseUrl)
+
+  // Must be the same origin (protocol + domain + port)
+  if (urlObj.origin !== baseUrlObj.origin) {
+    return false
+  }
+
+  // Normalize paths by removing trailing slashes for comparison
+  const basePath = baseUrlObj.pathname.replace(/\/$/, '')
+  const urlPath = urlObj.pathname.replace(/\/$/, '')
+
+  // URL path must either:
+  // 1. Exactly match the base path
+  // 2. Start with base path followed by a slash
+  // 3. Base path is empty (root) and URL path starts with /
+  return urlPath === basePath
+    || urlPath.startsWith(`${basePath}/`)
+    || (basePath === '' && urlPath.startsWith('/'))
+}
+
 export function extractLinks(content: string, baseUrl: string): string[] {
   const urls: string[] = []
   // First, remove all image links from the content
@@ -113,8 +141,9 @@ export function extractLinks(content: string, baseUrl: string): string[] {
   while ((match = urlRegex.exec(contentWithoutImages)) !== null) {
     const link = match[1]
     try {
-      const absoluteUrl = new URL(link, baseUrl).href // transfer relative url to absolute
-      if (absoluteUrl.startsWith(baseUrl)) {
+      // Convert relative URL to absolute
+      const absoluteUrl = new URL(link, baseUrl).href
+      if (isUrlInScope(absoluteUrl, baseUrl)) {
         urls.push(absoluteUrl)
       }
     }
@@ -137,8 +166,9 @@ export function extractLinksFromHtml(content: string, baseUrl: string): string[]
     const href = link.getAttribute('href')
     if (href && !imageExtensions.test(href)) {
       try {
+        // Convert relative URL to absolute
         const absoluteUrl = new URL(href, baseUrl).href
-        if (absoluteUrl.startsWith(baseUrl)) {
+        if (isUrlInScope(absoluteUrl, baseUrl)) {
           urls.push(absoluteUrl)
         }
       }
@@ -148,7 +178,7 @@ export function extractLinksFromHtml(content: string, baseUrl: string): string[]
     }
   })
 
-  return urls
+  return Array.from(new Set(urls))
 }
 
 async function crawl(
