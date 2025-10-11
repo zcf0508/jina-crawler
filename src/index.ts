@@ -160,7 +160,7 @@ export function normalizeUrl(url: string): string {
     // Remove hash to avoid crawling the same page multiple times
     return url.split('#')[0]
   }
-  catch (e) {
+  catch {
     // If URL parsing fails, return as-is
     return url.split('#')[0]
   }
