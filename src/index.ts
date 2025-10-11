@@ -7,6 +7,10 @@ import { got } from 'got-cjs'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { parse } from 'node-html-parser'
+import rehypeParse from 'rehype-parse'
+import rehypeRemark from 'rehype-remark'
+import remarkStringify from 'remark-stringify'
+import { unified } from 'unified'
 
 const rateLimit = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -69,6 +73,21 @@ async function fetchOriginalContent(url: string): Promise<string> {
     },
   })
   return response.body
+}
+
+/**
+ * Convert HTML to Markdown using unified/rehype/remark pipeline
+ * @param html - The HTML string to convert
+ * @returns Markdown string
+ */
+export async function htmlToMarkdown(html: string): Promise<string> {
+  const file = await unified()
+    .use(rehypeParse) // Parse HTML to rehype AST
+    .use(rehypeRemark) // Convert rehype AST to remark AST
+    .use(remarkStringify) // Convert remark AST to Markdown string
+    .process(html)
+
+  return String(file)
 }
 
 async function saveContent(name: string, baseUrl: string, url: string, content: string): Promise<void> {
@@ -249,29 +268,60 @@ async function crawl(
   }
 
   requestScheduler.addRequest(async () => {
-    // First try to get MD content from Jina as it's more reliable
-    const mdContent = await fetchContent(normalizedUrl, token)
-    await saveContent(name, baseUrl, normalizedUrl, mdContent)
-    const mdLinks = extractLinks(mdContent, normalizedUrl, baseUrl)
+    let mdLinks: string[] = []
+    let htmlContent: string | null = null
 
     try {
-      // Try to fetch and parse original HTML content
-      const originalContent = await fetchOriginalContent(normalizedUrl)
-      const htmlLinks = extractLinksFromHtml(originalContent, normalizedUrl, baseUrl)
+      // Try to get MD content from Jina (preferred method)
+      const mdContent = await fetchContent(normalizedUrl, token)
+      await saveContent(name, baseUrl, normalizedUrl, mdContent)
+      mdLinks = extractLinks(mdContent, normalizedUrl, baseUrl)
+      consola.success(`Saved MD content from Jina for ${normalizedUrl}`)
+    }
+    catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      consola.error(`Failed to fetch MD content from Jina for ${normalizedUrl}: ${errorMessage}`)
 
-      // If HTML parsing was successful and found links, combine them with MD links
+      // Jina failed, try to fetch original HTML and convert it locally
+      try {
+        consola.info(`Attempting local HTML to MD conversion for ${normalizedUrl}`)
+        htmlContent = await fetchOriginalContent(normalizedUrl)
+        const convertedMd = await htmlToMarkdown(htmlContent)
+        await saveContent(name, baseUrl, normalizedUrl, convertedMd)
+        mdLinks = extractLinks(convertedMd, normalizedUrl, baseUrl)
+        consola.success(`Saved content using local HTML-to-MD conversion for ${normalizedUrl}`)
+      }
+      catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+        consola.error(`Failed to convert HTML to MD for ${normalizedUrl}: ${fallbackMessage}`)
+      }
+    }
+
+    // Try to extract links from original HTML for better coverage
+    try {
+      // If we haven't fetched HTML yet, fetch it now
+      if (!htmlContent) {
+        htmlContent = await fetchOriginalContent(normalizedUrl)
+      }
+
+      const htmlLinks = extractLinksFromHtml(htmlContent, normalizedUrl, baseUrl)
+
+      // Combine MD links and HTML links
       if (htmlLinks.length > 0) {
         const allLinks = Array.from(new Set([...mdLinks, ...htmlLinks]))
         await Promise.all(allLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
         return
       }
     }
-    catch (e) {
-      consola.warn(`Failed to fetch/parse original content from ${normalizedUrl}, falling back to MD links only: ${e}`)
+    catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      consola.warn(`Failed to fetch/parse HTML content for ${normalizedUrl}: ${errorMessage}`)
     }
 
-    // Fallback: use only MD links if HTML parsing failed or found no links
-    await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
+    // Fallback: use MD links if available
+    if (mdLinks.length > 0) {
+      await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
+    }
   })
 }
 

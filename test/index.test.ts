@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractLinks, extractLinksFromHtml, normalizeUrl } from '../src/index'
+import { extractLinks, extractLinksFromHtml, htmlToMarkdown, normalizeUrl } from '../src/index'
 
 describe('extractLinks', () => {
   it('should extract links from markdown content', () => {
@@ -613,5 +613,96 @@ describe('normalizeUrl', () => {
       expect(normalizeUrl('https://docs.example.com/#/chapter1/section1'))
         .toBe('https://docs.example.com/#/chapter1/section1')
     })
+  })
+})
+
+describe('htmlToMarkdown', () => {
+  it('should convert basic HTML to Markdown', async () => {
+    const html = `
+      <h1>Hello World</h1>
+      <p>This is a paragraph.</p>
+    `
+    const md = await htmlToMarkdown(html)
+
+    expect(md).toContain('# Hello World')
+    expect(md).toContain('This is a paragraph.')
+  })
+
+  it('should convert links in HTML to Markdown', async () => {
+    const html = `
+      <p>Check out <a href="https://example.com">this link</a>.</p>
+    `
+    const md = await htmlToMarkdown(html)
+
+    expect(md).toContain('[this link](https://example.com)')
+  })
+
+  it('should convert lists in HTML to Markdown', async () => {
+    const html = `
+      <ul>
+        <li>Item 1</li>
+        <li>Item 2</li>
+        <li>Item 3</li>
+      </ul>
+    `
+    const md = await htmlToMarkdown(html)
+
+    // remark-stringify uses * for unordered lists by default
+    expect(md).toContain('* Item 1')
+    expect(md).toContain('* Item 2')
+    expect(md).toContain('* Item 3')
+  })
+
+  it('should convert complex HTML document', async () => {
+    const html = `
+      <html>
+        <head><title>Test Page</title></head>
+        <body>
+          <h1>Documentation</h1>
+          <p>Welcome to the <strong>documentation</strong>.</p>
+          <h2>Getting Started</h2>
+          <p>Follow these steps:</p>
+          <ol>
+            <li>Install the package</li>
+            <li>Configure settings</li>
+          </ol>
+          <p>For more info, visit <a href="/docs/guide">the guide</a>.</p>
+        </body>
+      </html>
+    `
+    const md = await htmlToMarkdown(html)
+
+    expect(md).toContain('# Documentation')
+    expect(md).toContain('**documentation**')
+    expect(md).toContain('## Getting Started')
+    expect(md).toContain('1. Install the package')
+    expect(md).toContain('2. Configure settings')
+    expect(md).toContain('[the guide](/docs/guide)')
+  })
+
+  it('should handle code blocks', async () => {
+    const html = `
+      <pre><code>const x = 42;</code></pre>
+    `
+    const md = await htmlToMarkdown(html)
+
+    expect(md).toContain('const x = 42;')
+  })
+
+  it('should preserve emphasis and strong', async () => {
+    const html = `
+      <p>This is <em>italic</em> and <strong>bold</strong> text.</p>
+    `
+    const md = await htmlToMarkdown(html)
+
+    expect(md).toContain('*italic*')
+    expect(md).toContain('**bold**')
+  })
+
+  it('should handle empty or malformed HTML gracefully', async () => {
+    const html = ''
+    const md = await htmlToMarkdown(html)
+
+    expect(md).toBe('')
   })
 })
