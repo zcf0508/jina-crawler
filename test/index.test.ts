@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractLinks, extractLinksFromHtml, htmlToMarkdown, normalizeUrl } from '../src/index'
+import { extractLinks, extractLinksFromHtml, htmlToMarkdown, normalizeUrl, shouldCrawlUrl } from '../src/index'
 
 describe('extractLinks', () => {
   it('should extract links from markdown content', () => {
@@ -704,5 +704,104 @@ describe('htmlToMarkdown', () => {
     const md = await htmlToMarkdown(html)
 
     expect(md).toBe('')
+  })
+})
+
+describe('shouldCrawlUrl', () => {
+  describe('protocol filtering', () => {
+    it('should allow HTTP and HTTPS protocols', () => {
+      expect(shouldCrawlUrl('http://example.com/page')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/page')).toBe(true)
+    })
+
+    it('should filter out javascript: protocol', () => {
+      expect(shouldCrawlUrl('javascript:void(0)')).toBe(false)
+      expect(shouldCrawlUrl('javascript:alert("test")')).toBe(false)
+    })
+
+    it('should filter out mailto: protocol', () => {
+      expect(shouldCrawlUrl('mailto:admin@example.com')).toBe(false)
+      expect(shouldCrawlUrl('mailto:user@domain.com?subject=Hello')).toBe(false)
+    })
+
+    it('should filter out tel: protocol', () => {
+      expect(shouldCrawlUrl('tel:+1234567890')).toBe(false)
+      expect(shouldCrawlUrl('tel:123-456-7890')).toBe(false)
+    })
+
+    it('should filter out other non-HTTP protocols', () => {
+      expect(shouldCrawlUrl('ftp://files.example.com')).toBe(false)
+      expect(shouldCrawlUrl('data:text/html,<h1>Test</h1>')).toBe(false)
+      expect(shouldCrawlUrl('file:///home/user/file.txt')).toBe(false)
+      expect(shouldCrawlUrl('about:blank')).toBe(false)
+    })
+  })
+
+  describe('download file filtering', () => {
+    it('should filter out archive files', () => {
+      expect(shouldCrawlUrl('https://example.com/file.zip')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/archive.rar')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/package.tar.gz')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/data.7z')).toBe(false)
+    })
+
+    it('should filter out document files', () => {
+      expect(shouldCrawlUrl('https://example.com/document.pdf')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/report.docx')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/old.doc')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/data.xlsx')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/sheet.xls')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/slides.pptx')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/presentation.ppt')).toBe(false)
+    })
+
+    it('should filter out executable files', () => {
+      expect(shouldCrawlUrl('https://example.com/installer.exe')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/app.dmg')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/package.deb')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/software.msi')).toBe(false)
+    })
+
+    it('should filter out video files', () => {
+      expect(shouldCrawlUrl('https://example.com/video.mp4')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/movie.avi')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/clip.mov')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/film.mkv')).toBe(false)
+    })
+
+    it('should filter out audio files', () => {
+      expect(shouldCrawlUrl('https://example.com/song.mp3')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/audio.wav')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/music.ogg')).toBe(false)
+      expect(shouldCrawlUrl('https://example.com/track.flac')).toBe(false)
+    })
+  })
+
+  describe('web page URLs', () => {
+    it('should allow HTML pages', () => {
+      expect(shouldCrawlUrl('https://example.com/page.html')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/docs/guide.html')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/index.htm')).toBe(true)
+    })
+
+    it('should allow paths without extensions', () => {
+      expect(shouldCrawlUrl('https://example.com/docs')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/guide/intro')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/')).toBe(true)
+    })
+
+    it('should allow PHP and other server-side pages', () => {
+      expect(shouldCrawlUrl('https://example.com/page.php')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/api.jsp')).toBe(true)
+      expect(shouldCrawlUrl('https://example.com/page.asp')).toBe(true)
+    })
+  })
+
+  describe('invalid URLs', () => {
+    it('should return false for invalid URLs', () => {
+      expect(shouldCrawlUrl('not-a-url')).toBe(false)
+      expect(shouldCrawlUrl('ht tp://example.com')).toBe(false)
+      expect(shouldCrawlUrl('')).toBe(false)
+    })
   })
 })

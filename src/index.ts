@@ -149,6 +149,41 @@ function isUrlInScope(url: string, baseUrl: string): boolean {
 }
 
 /**
+ * Check if a URL should be crawled (filter out unwanted link types)
+ * @param url - The URL to check
+ * @returns true if the URL should be crawled
+ */
+export function shouldCrawlUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url)
+
+    // 1. Only allow HTTP/HTTPS protocols
+    // Filter out: javascript:, mailto:, tel:, ftp:, data:, file:, etc.
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+      return false
+    }
+
+    // 2. Filter out download files (documents, archives, executables, media)
+    // Archives: zip, rar, 7z, tar, gz, bz2, xz
+    // Documents: pdf, doc, docx, xls, xlsx, ppt, pptx, odt, ods, odp
+    // Executables: exe, dmg, pkg, deb, rpm, msi, apk
+    // Videos: mp4, avi, mov, wmv, flv, mkv, webm
+    // Audio: mp3, wav, ogg, flac, aac, m4a
+    const downloadExtensions = /\.(?:zip|rar|7z|tar|gz|bz2|xz|pdf|docx?|xlsx?|pptx?|odt|ods|odp|exe|dmg|pkg|deb|rpm|msi|apk|mp4|avi|mov|wmv|flv|mkv|webm|mp3|wav|ogg|flac|aac|m4a)$/i
+
+    if (downloadExtensions.test(urlObj.pathname)) {
+      return false
+    }
+
+    return true
+  }
+  catch {
+    // Invalid URL, don't crawl
+    return false
+  }
+}
+
+/**
  * Normalize URL by intelligently handling hash fragments
  *
  * Hash fragments serve different purposes:
@@ -199,6 +234,12 @@ export function extractLinks(content: string, currentUrl: string, baseUrl: strin
     try {
       // Convert relative URL to absolute, using currentUrl as the base for resolution
       const absoluteUrl = new URL(link, currentUrl).href
+
+      // Filter out unwanted link types
+      if (!shouldCrawlUrl(absoluteUrl)) {
+        continue
+      }
+
       // Check if the resolved URL is within the baseUrl scope
       if (isUrlInScope(absoluteUrl, baseUrl)) {
         urls.push(absoluteUrl)
@@ -225,6 +266,12 @@ export function extractLinksFromHtml(content: string, currentUrl: string, baseUr
       try {
         // Convert relative URL to absolute, using currentUrl as the base for resolution
         const absoluteUrl = new URL(href, currentUrl).href
+
+        // Filter out unwanted link types
+        if (!shouldCrawlUrl(absoluteUrl)) {
+          return
+        }
+
         // Check if the resolved URL is within the baseUrl scope
         if (isUrlInScope(absoluteUrl, baseUrl)) {
           urls.push(absoluteUrl)
