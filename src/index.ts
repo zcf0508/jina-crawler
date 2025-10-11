@@ -7,12 +7,16 @@ import { got } from 'got-cjs'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { parse } from 'node-html-parser'
+import pLimit from 'p-limit'
 import rehypeParse from 'rehype-parse'
 import rehypeRemark from 'rehype-remark'
 import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
 
 const rateLimit = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Limit concurrent crawl function calls to prevent memory overflow
+const crawlLimit = pLimit(2)
 
 class RequestScheduler {
   private queue: (() => Promise<void>)[] = []
@@ -310,7 +314,12 @@ async function crawl(
     consola.log(`Reading existing file: ${filePath}`)
     const content = fs.readFileSync(filePath, 'utf-8')
     const mdLinks = extractLinks(content, normalizedUrl, baseUrl)
-    await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
+    // Apply concurrency limit to prevent memory overflow
+    await Promise.all(
+      mdLinks.map(link =>
+        crawlLimit(() => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)),
+      ),
+    )
     return
   }
 
@@ -356,7 +365,12 @@ async function crawl(
       // Combine MD links and HTML links
       if (htmlLinks.length > 0) {
         const allLinks = Array.from(new Set([...mdLinks, ...htmlLinks]))
-        await Promise.all(allLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
+        // Apply concurrency limit to prevent memory overflow
+        await Promise.all(
+          allLinks.map(link =>
+            crawlLimit(() => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)),
+          ),
+        )
         return
       }
     }
@@ -367,7 +381,12 @@ async function crawl(
 
     // Fallback: use MD links if available
     if (mdLinks.length > 0) {
-      await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
+      // Apply concurrency limit to prevent memory overflow
+      await Promise.all(
+        mdLinks.map(link =>
+          crawlLimit(() => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)),
+        ),
+      )
     }
   })
 }
