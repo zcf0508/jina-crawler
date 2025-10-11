@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractLinks, extractLinksFromHtml } from '../src/index'
+import { extractLinks, extractLinksFromHtml, normalizeUrl } from '../src/index'
 
 describe('extractLinks', () => {
   it('should extract links from markdown content', () => {
@@ -499,6 +499,119 @@ describe('extractLinksFromHtml', () => {
       expect(links).toContain('https://example.com/docs/guide/page1.html')
       // Outside scope - resolves to /other/page2.html
       expect(links).not.toContain('https://example.com/other/page2.html')
+    })
+  })
+})
+
+describe('normalizeUrl', () => {
+  describe('hash Router detection (SPA)', () => {
+    it('should keep hash for hash router patterns', () => {
+      const hashRouterUrls = [
+        'https://example.com/docs/#/guide/intro',
+        'https://example.com/docs/#/api/methods',
+        'https://example.com/docs/#/',
+        'https://example.com/docs/index.html#/guide',
+        'https://example.com/#/page/subpage',
+      ]
+
+      hashRouterUrls.forEach((url) => {
+        expect(normalizeUrl(url)).toBe(url)
+      })
+    })
+
+    it('should keep hash containing multiple slashes', () => {
+      const url = 'https://example.com/docs/#/guide/advanced/config'
+      expect(normalizeUrl(url)).toBe(url)
+    })
+  })
+
+  describe('anchor link detection (MPA)', () => {
+    it('should remove hash for anchor links', () => {
+      const testCases = [
+        {
+          input: 'https://example.com/docs/guide.html#installation',
+          expected: 'https://example.com/docs/guide.html',
+        },
+        {
+          input: 'https://example.com/docs/api#methods',
+          expected: 'https://example.com/docs/api',
+        },
+        {
+          input: 'https://example.com/page#top',
+          expected: 'https://example.com/page',
+        },
+        {
+          input: 'https://example.com/docs/#section',
+          expected: 'https://example.com/docs/',
+        },
+        {
+          input: 'https://example.com/docs/#heading-1',
+          expected: 'https://example.com/docs/',
+        },
+      ]
+
+      testCases.forEach(({ input, expected }) => {
+        expect(normalizeUrl(input)).toBe(expected)
+      })
+    })
+
+    it('should handle URLs without hash', () => {
+      const url = 'https://example.com/docs/guide.html'
+      expect(normalizeUrl(url)).toBe(url)
+    })
+
+    it('should handle empty hash', () => {
+      const url = 'https://example.com/docs/#'
+      expect(normalizeUrl(url)).toBe('https://example.com/docs/')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should handle query parameters with hash', () => {
+      expect(normalizeUrl('https://example.com/page?q=test#section'))
+        .toBe('https://example.com/page?q=test')
+
+      expect(normalizeUrl('https://example.com/page?q=test#/route'))
+        .toBe('https://example.com/page?q=test#/route')
+    })
+
+    it('should preserve hash router with query parameters', () => {
+      const url = 'https://example.com/docs?lang=en#/guide/intro'
+      expect(normalizeUrl(url)).toBe(url)
+    })
+
+    it('should handle URLs with port numbers', () => {
+      expect(normalizeUrl('http://localhost:3000/#/docs'))
+        .toBe('http://localhost:3000/#/docs')
+
+      expect(normalizeUrl('http://localhost:3000/page#section'))
+        .toBe('http://localhost:3000/page')
+    })
+  })
+
+  describe('real-world examples', () => {
+    it('should handle VuePress 1.x style URLs', () => {
+      expect(normalizeUrl('https://v1.vuepress.vuejs.org/#/guide/'))
+        .toBe('https://v1.vuepress.vuejs.org/#/guide/')
+
+      expect(normalizeUrl('https://v1.vuepress.vuejs.org/#/guide/getting-started'))
+        .toBe('https://v1.vuepress.vuejs.org/#/guide/getting-started')
+    })
+
+    it('should handle modern docs with anchors', () => {
+      expect(normalizeUrl('https://vuejs.org/guide/introduction.html#what-is-vue'))
+        .toBe('https://vuejs.org/guide/introduction.html')
+
+      expect(normalizeUrl('https://react.dev/learn#thinking-in-react'))
+        .toBe('https://react.dev/learn')
+    })
+
+    it('should handle GitBook style URLs', () => {
+      expect(normalizeUrl('https://docs.example.com/#/'))
+        .toBe('https://docs.example.com/#/')
+
+      expect(normalizeUrl('https://docs.example.com/#/chapter1/section1'))
+        .toBe('https://docs.example.com/#/chapter1/section1')
     })
   })
 })

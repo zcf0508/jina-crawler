@@ -129,6 +129,43 @@ function isUrlInScope(url: string, baseUrl: string): boolean {
     || (basePath === '' && urlPath.startsWith('/'))
 }
 
+/**
+ * Normalize URL by intelligently handling hash fragments
+ *
+ * Hash fragments serve different purposes:
+ * 1. Anchor links (e.g., #section): Used for in-page navigation
+ *    - Should be removed to avoid crawling the same page multiple times
+ * 2. Hash routing (e.g., #/guide/intro): Used in SPAs for client-side routing
+ *    - Should be kept as they represent different pages
+ *
+ * Heuristic: If hash contains "/", it's likely hash routing; otherwise, it's an anchor
+ *
+ * @param url - The URL to normalize
+ * @returns Normalized URL
+ */
+export function normalizeUrl(url: string): string {
+  try {
+    const urlObj = new URL(url)
+    const hash = urlObj.hash
+
+    // If hash contains "/", it's likely a hash router (SPA like VuePress 1.x, GitBook)
+    // Examples: #/guide/intro, #/api/methods, #/
+    // Keep the hash to preserve different "pages"
+    if (hash && hash.includes('/')) {
+      return url
+    }
+
+    // Otherwise, it's an anchor link within the same page
+    // Examples: #section, #introduction, #top
+    // Remove hash to avoid crawling the same page multiple times
+    return url.split('#')[0]
+  }
+  catch (e) {
+    // If URL parsing fails, return as-is
+    return url.split('#')[0]
+  }
+}
+
 export function extractLinks(content: string, currentUrl: string, baseUrl: string): string[] {
   const urls: string[] = []
   // First, remove all image links from the content
@@ -192,32 +229,35 @@ async function crawl(
   maxDepth: number,
   token?: string,
 ): Promise<void> {
-  if (depth > maxDepth || visited.has(url)) {
+  // Normalize URL to handle hash fragments intelligently
+  const normalizedUrl = normalizeUrl(url)
+
+  if (depth > maxDepth || visited.has(normalizedUrl)) {
     return
   }
 
-  visited.add(url)
-  const filePath = getFilePath(name, baseUrl, url)
+  visited.add(normalizedUrl)
+  const filePath = getFilePath(name, baseUrl, normalizedUrl)
 
   // check if file already exists
   if (fs.existsSync(filePath)) {
     consola.log(`Reading existing file: ${filePath}`)
     const content = fs.readFileSync(filePath, 'utf-8')
-    const mdLinks = extractLinks(content, url, baseUrl)
+    const mdLinks = extractLinks(content, normalizedUrl, baseUrl)
     await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
     return
   }
 
   requestScheduler.addRequest(async () => {
     // First try to get MD content from Jina as it's more reliable
-    const mdContent = await fetchContent(url, token)
-    await saveContent(name, baseUrl, url.split('#')[0], mdContent)
-    const mdLinks = extractLinks(mdContent, url, baseUrl)
+    const mdContent = await fetchContent(normalizedUrl, token)
+    await saveContent(name, baseUrl, normalizedUrl, mdContent)
+    const mdLinks = extractLinks(mdContent, normalizedUrl, baseUrl)
 
     try {
       // Try to fetch and parse original HTML content
-      const originalContent = await fetchOriginalContent(url)
-      const htmlLinks = extractLinksFromHtml(originalContent, url, baseUrl)
+      const originalContent = await fetchOriginalContent(normalizedUrl)
+      const htmlLinks = extractLinksFromHtml(originalContent, normalizedUrl, baseUrl)
 
       // If HTML parsing was successful and found links, combine them with MD links
       if (htmlLinks.length > 0) {
@@ -227,7 +267,7 @@ async function crawl(
       }
     }
     catch (e) {
-      consola.warn(`Failed to fetch/parse original content from ${url}, falling back to MD links only: ${e}`)
+      consola.warn(`Failed to fetch/parse original content from ${normalizedUrl}, falling back to MD links only: ${e}`)
     }
 
     // Fallback: use only MD links if HTML parsing failed or found no links
