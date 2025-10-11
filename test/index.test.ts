@@ -54,7 +54,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
     expect(links).not.toContain('https://example.com/clickable.jpg')
   })
 
-  describe('URL scope validation', () => {
+  describe('uRL scope validation', () => {
     it('should include links within the same base path', () => {
       const content = `
 [Link 1](https://example.com/docs/page1)
@@ -249,7 +249,7 @@ describe('extractLinksFromHtml', () => {
     expect(links).not.toContain('https://example.com/icon.svg')
   })
 
-  describe('URL scope validation', () => {
+  describe('uRL scope validation', () => {
     it('should include links within the same base path', () => {
       const content = `
         <html>
