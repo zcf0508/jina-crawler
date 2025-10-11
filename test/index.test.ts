@@ -9,7 +9,7 @@ describe('extractLinks', () => {
 [Link 2](https://example.com/page2)
     `
     const baseUrl = 'https://example.com'
-    const links = extractLinks(content, baseUrl)
+    const links = extractLinks(content, baseUrl, baseUrl)
 
     expect(links).toContain('https://example.com/page1')
     expect(links).toContain('https://example.com/page2')
@@ -22,7 +22,7 @@ describe('extractLinks', () => {
 [Link 2](./page2)
     `
     const baseUrl = 'https://example.com'
-    const links = extractLinks(content, baseUrl)
+    const links = extractLinks(content, baseUrl, baseUrl)
 
     expect(links).toContain('https://example.com/page1')
     expect(links).toContain('https://example.com/page2')
@@ -41,7 +41,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [![Clickable image](https://example.com/clickable.jpg)](https://example.com/page3)
 `
     const baseUrl = 'https://example.com'
-    const links = extractLinks(content, baseUrl)
+    const links = extractLinks(content, baseUrl, baseUrl)
 
     // Regular links should be included
     expect(links).toContain('https://example.com/page1')
@@ -61,7 +61,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 2](https://example.com/docs/sub/page2)
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/sub/page2')
@@ -74,7 +74,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 3](https://example.com/documentation/guide)
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).not.toContain('https://example.com/blog/post1')
@@ -88,7 +88,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 2](/docs/page2)
       `
       const baseUrl = 'https://example.com/docs/'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/page2')
@@ -100,7 +100,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 2](/docs/page2)
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/page2')
@@ -113,7 +113,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 3](https://example.org/page3)
       `
       const baseUrl = 'https://example.com'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/page1')
       expect(links).not.toContain('https://other-domain.com/page2')
@@ -127,7 +127,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 3](https://other-domain.com/page3)
       `
       const baseUrl = 'https://example.com'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/page1')
       expect(links).toContain('https://example.com/docs/page2')
@@ -141,7 +141,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 3](https://example.com/other/page3)
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       // Links within /docs should be included
       expect(links).toContain('https://example.com/docs/page1')
@@ -157,7 +157,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 3](/other/page3)
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/guide/page2')
@@ -172,7 +172,7 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
       `
       // When baseUrl ends with /, it's treated as a directory
       const baseUrl = 'https://example.com/docs/guide/'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/guide/page1')
       expect(links).toContain('https://example.com/docs/guide/page2')
@@ -186,10 +186,43 @@ Here's another [link](https://example.com/page2) and another ![image](https://ex
 [Link 3](/page1)
       `
       const baseUrl = 'https://example.com'
-      const links = extractLinks(content, baseUrl)
+      const links = extractLinks(content, baseUrl, baseUrl)
 
       expect(links.length).toBe(1)
       expect(links).toContain('https://example.com/page1')
+    })
+
+    it('should correctly parse relative links from a nested page', () => {
+      const content = `
+[Same dir](./installation.html)
+[Subdirectory](./advanced/config.html)
+[Parent dir](../api/methods.html)
+[Absolute](/docs/reference.html)
+      `
+      const currentUrl = 'https://example.com/docs/guide/getting-started.html'
+      const baseUrl = 'https://example.com/docs'
+      const links = extractLinks(content, currentUrl, baseUrl)
+
+      // Relative links resolved from current page
+      expect(links).toContain('https://example.com/docs/guide/installation.html')
+      expect(links).toContain('https://example.com/docs/guide/advanced/config.html')
+      expect(links).toContain('https://example.com/docs/api/methods.html')
+      expect(links).toContain('https://example.com/docs/reference.html')
+    })
+
+    it('should filter out relative links that resolve outside scope', () => {
+      const content = `
+[Within scope](./page1.html)
+[Outside scope](../../other/page2.html)
+      `
+      const currentUrl = 'https://example.com/docs/guide/intro.html'
+      const baseUrl = 'https://example.com/docs'
+      const links = extractLinks(content, currentUrl, baseUrl)
+
+      // Within scope
+      expect(links).toContain('https://example.com/docs/guide/page1.html')
+      // Outside scope - resolves to /other/page2.html
+      expect(links).not.toContain('https://example.com/other/page2.html')
     })
   })
 })
@@ -205,7 +238,7 @@ describe('extractLinksFromHtml', () => {
       </html>
     `
     const baseUrl = 'https://example.com'
-    const links = extractLinksFromHtml(content, baseUrl)
+    const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
     expect(links).toContain('https://example.com/page1')
     expect(links).toContain('https://example.com/page2')
@@ -221,7 +254,7 @@ describe('extractLinksFromHtml', () => {
       </html>
     `
     const baseUrl = 'https://example.com'
-    const links = extractLinksFromHtml(content, baseUrl)
+    const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
     expect(links).toContain('https://example.com/page1')
     expect(links).toContain('https://example.com/page2')
@@ -240,7 +273,7 @@ describe('extractLinksFromHtml', () => {
       </html>
     `
     const baseUrl = 'https://example.com'
-    const links = extractLinksFromHtml(content, baseUrl)
+    const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
     expect(links).toContain('https://example.com/page1')
     expect(links).toContain('https://example.com/page2.html')
@@ -260,7 +293,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/sub/page2')
@@ -277,7 +310,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).not.toContain('https://example.com/blog/post1')
@@ -295,7 +328,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com/docs/'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/page2')
@@ -311,7 +344,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/page2')
@@ -328,7 +361,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/page1')
       expect(links).not.toContain('https://other-domain.com/page2')
@@ -346,7 +379,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/page1')
       expect(links).toContain('https://example.com/docs/page2')
@@ -364,7 +397,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       // Links within /docs should be included
       expect(links).toContain('https://example.com/docs/page1')
@@ -384,7 +417,7 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com/docs'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/page1')
       expect(links).toContain('https://example.com/docs/guide/page2')
@@ -403,7 +436,7 @@ describe('extractLinksFromHtml', () => {
       `
       // When baseUrl ends with /, it's treated as a directory
       const baseUrl = 'https://example.com/docs/guide/'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links).toContain('https://example.com/docs/guide/page1')
       expect(links).toContain('https://example.com/docs/guide/page2')
@@ -421,10 +454,51 @@ describe('extractLinksFromHtml', () => {
         </html>
       `
       const baseUrl = 'https://example.com'
-      const links = extractLinksFromHtml(content, baseUrl)
+      const links = extractLinksFromHtml(content, baseUrl, baseUrl)
 
       expect(links.length).toBe(1)
       expect(links).toContain('https://example.com/page1')
+    })
+
+    it('should correctly parse relative links from a nested page', () => {
+      const content = `
+        <html>
+          <body>
+            <a href="./installation.html">Same dir</a>
+            <a href="./advanced/config.html">Subdirectory</a>
+            <a href="../api/methods.html">Parent dir</a>
+            <a href="/docs/reference.html">Absolute</a>
+          </body>
+        </html>
+      `
+      const currentUrl = 'https://example.com/docs/guide/getting-started.html'
+      const baseUrl = 'https://example.com/docs'
+      const links = extractLinksFromHtml(content, currentUrl, baseUrl)
+
+      // Relative links resolved from current page
+      expect(links).toContain('https://example.com/docs/guide/installation.html')
+      expect(links).toContain('https://example.com/docs/guide/advanced/config.html')
+      expect(links).toContain('https://example.com/docs/api/methods.html')
+      expect(links).toContain('https://example.com/docs/reference.html')
+    })
+
+    it('should filter out relative links that resolve outside scope', () => {
+      const content = `
+        <html>
+          <body>
+            <a href="./page1.html">Within scope</a>
+            <a href="../../other/page2.html">Outside scope</a>
+          </body>
+        </html>
+      `
+      const currentUrl = 'https://example.com/docs/guide/intro.html'
+      const baseUrl = 'https://example.com/docs'
+      const links = extractLinksFromHtml(content, currentUrl, baseUrl)
+
+      // Within scope
+      expect(links).toContain('https://example.com/docs/guide/page1.html')
+      // Outside scope - resolves to /other/page2.html
+      expect(links).not.toContain('https://example.com/other/page2.html')
     })
   })
 })

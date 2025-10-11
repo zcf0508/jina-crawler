@@ -129,7 +129,7 @@ function isUrlInScope(url: string, baseUrl: string): boolean {
     || (basePath === '' && urlPath.startsWith('/'))
 }
 
-export function extractLinks(content: string, baseUrl: string): string[] {
+export function extractLinks(content: string, currentUrl: string, baseUrl: string): string[] {
   const urls: string[] = []
   // First, remove all image links from the content
   const contentWithoutImages = content.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
@@ -141,8 +141,9 @@ export function extractLinks(content: string, baseUrl: string): string[] {
   while ((match = urlRegex.exec(contentWithoutImages)) !== null) {
     const link = match[1]
     try {
-      // Convert relative URL to absolute
-      const absoluteUrl = new URL(link, baseUrl).href
+      // Convert relative URL to absolute, using currentUrl as the base for resolution
+      const absoluteUrl = new URL(link, currentUrl).href
+      // Check if the resolved URL is within the baseUrl scope
       if (isUrlInScope(absoluteUrl, baseUrl)) {
         urls.push(absoluteUrl)
       }
@@ -154,7 +155,7 @@ export function extractLinks(content: string, baseUrl: string): string[] {
   return Array.from(new Set(urls))
 }
 
-export function extractLinksFromHtml(content: string, baseUrl: string): string[] {
+export function extractLinksFromHtml(content: string, currentUrl: string, baseUrl: string): string[] {
   const urls: string[] = []
   const root = parse(content)
   const links = root.querySelectorAll('a')
@@ -166,8 +167,9 @@ export function extractLinksFromHtml(content: string, baseUrl: string): string[]
     const href = link.getAttribute('href')
     if (href && !imageExtensions.test(href)) {
       try {
-        // Convert relative URL to absolute
-        const absoluteUrl = new URL(href, baseUrl).href
+        // Convert relative URL to absolute, using currentUrl as the base for resolution
+        const absoluteUrl = new URL(href, currentUrl).href
+        // Check if the resolved URL is within the baseUrl scope
         if (isUrlInScope(absoluteUrl, baseUrl)) {
           urls.push(absoluteUrl)
         }
@@ -201,7 +203,7 @@ async function crawl(
   if (fs.existsSync(filePath)) {
     consola.log(`Reading existing file: ${filePath}`)
     const content = fs.readFileSync(filePath, 'utf-8')
-    const mdLinks = extractLinks(content, baseUrl)
+    const mdLinks = extractLinks(content, url, baseUrl)
     await Promise.all(mdLinks.map(link => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)))
     return
   }
@@ -210,12 +212,12 @@ async function crawl(
     // First try to get MD content from Jina as it's more reliable
     const mdContent = await fetchContent(url, token)
     await saveContent(name, baseUrl, url.split('#')[0], mdContent)
-    const mdLinks = extractLinks(mdContent, baseUrl)
+    const mdLinks = extractLinks(mdContent, url, baseUrl)
 
     try {
       // Try to fetch and parse original HTML content
       const originalContent = await fetchOriginalContent(url)
-      const htmlLinks = extractLinksFromHtml(originalContent, baseUrl)
+      const htmlLinks = extractLinksFromHtml(originalContent, url, baseUrl)
 
       // If HTML parsing was successful and found links, combine them with MD links
       if (htmlLinks.length > 0) {
