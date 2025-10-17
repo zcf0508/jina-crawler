@@ -94,10 +94,26 @@ export async function htmlToMarkdown(html: string): Promise<string> {
   return String(file)
 }
 
-async function saveContent(name: string, baseUrl: string, url: string, content: string): Promise<void> {
+/**
+ * Calculate relative path from a URL relative to a base URL
+ * @param baseUrl - The base URL
+ * @param url - The URL to calculate relative path for
+ * @returns The relative path
+ */
+export function calculateRelativePath(baseUrl: string, url: string): string {
   const baseUrlObj = new URL(baseUrl)
   const urlObj = new URL(url, baseUrl)
-  const relativePath = path.join(baseUrlObj.pathname, urlObj.pathname).replace(/^\//, '')
+
+  // Calculate relative path by removing the base path from the URL path
+  let relativePath = urlObj.pathname
+  if (relativePath.startsWith(baseUrlObj.pathname)) {
+    relativePath = relativePath.slice(baseUrlObj.pathname.length)
+  }
+  return relativePath.replace(/^\//, '')
+}
+
+async function saveContent(name: string, baseUrl: string, url: string, content: string): Promise<void> {
+  const relativePath = calculateRelativePath(baseUrl, url)
 
   // ensure base directory
   const baseDir = path.join('./docs', name)
@@ -392,9 +408,7 @@ async function crawl(
 }
 
 function getFilePath(name: string, baseUrl: string, url: string): string {
-  const baseUrlObj = new URL(baseUrl)
-  const urlObj = new URL(url, baseUrl)
-  const relativePath = path.join(baseUrlObj.pathname, urlObj.pathname).replace(/^\//, '')
+  const relativePath = calculateRelativePath(baseUrl, url)
   const dir = path.join('./docs', name, path.dirname(relativePath))
   const filename = path.basename(relativePath) === '' ? 'index' : path.basename(relativePath)
   return path.join(dir, `${filename}.md`)

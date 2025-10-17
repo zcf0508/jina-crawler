@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractLinks, extractLinksFromHtml, htmlToMarkdown, normalizeUrl, shouldCrawlUrl } from '../src/index'
+import { calculateRelativePath, extractLinks, extractLinksFromHtml, htmlToMarkdown, normalizeUrl, shouldCrawlUrl } from '../src/index'
 
 describe('extractLinks', () => {
   it('should extract links from markdown content', () => {
@@ -802,6 +802,163 @@ describe('shouldCrawlUrl', () => {
       expect(shouldCrawlUrl('not-a-url')).toBe(false)
       expect(shouldCrawlUrl('ht tp://example.com')).toBe(false)
       expect(shouldCrawlUrl('')).toBe(false)
+    })
+  })
+})
+
+describe('calculateRelativePath', () => {
+  describe('basic relative path calculation', () => {
+    it('should calculate relative path for URLs with deep base paths', () => {
+      const baseUrl = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/'
+      const url = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/getting-started.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('getting-started.html')
+    })
+
+    it('should calculate relative path for nested pages', () => {
+      const baseUrl = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/'
+      const url = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/features/profiles.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('features/profiles.html')
+    })
+
+    it('should handle base URL without trailing slash', () => {
+      const baseUrl = 'https://example.com/docs/guide'
+      const url = 'https://example.com/docs/guide/installation.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('installation.html')
+    })
+
+    it('should handle base URL at root level', () => {
+      const baseUrl = 'https://example.com/'
+      const url = 'https://example.com/docs/guide.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('docs/guide.html')
+    })
+
+    it('should handle base URL at root level without trailing slash', () => {
+      const baseUrl = 'https://example.com'
+      const url = 'https://example.com/docs/guide.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('docs/guide.html')
+    })
+  })
+
+  describe('index pages', () => {
+    it('should handle index page at base URL', () => {
+      const baseUrl = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/'
+      const url = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('')
+    })
+
+    it('should handle index.html at base URL', () => {
+      const baseUrl = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/'
+      const url = 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/index.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('index.html')
+    })
+  })
+
+  describe('complex paths', () => {
+    it('should handle deeply nested documentation structure', () => {
+      const baseUrl = 'https://example.com/v2/api/reference/'
+      const url = 'https://example.com/v2/api/reference/components/button/props.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('components/button/props.html')
+    })
+
+    it('should handle paths with query parameters', () => {
+      const baseUrl = 'https://example.com/docs/'
+      const url = 'https://example.com/docs/guide.html?version=2.0'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('guide.html')
+    })
+
+    it('should handle paths with hash fragments', () => {
+      const baseUrl = 'https://example.com/docs/'
+      const url = 'https://example.com/docs/guide.html#installation'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('guide.html')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should handle URL that does not start with base path', () => {
+      const baseUrl = 'https://example.com/docs/'
+      const url = 'https://example.com/blog/post.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      // Should return the full path since it doesn't start with base path
+      expect(result).toBe('blog/post.html')
+    })
+
+    it('should remove leading slash from result', () => {
+      const baseUrl = 'https://example.com/docs'
+      const url = 'https://example.com/docs/guide.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).not.toMatch(/^\//)
+    })
+
+    it('should handle multiple trailing slashes', () => {
+      const baseUrl = 'https://example.com/docs///'
+      const url = 'https://example.com/docs///guide.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('guide.html')
+    })
+  })
+
+  describe('real-world examples', () => {
+    it('should handle Spring Boot documentation structure', () => {
+      const testCases = [
+        {
+          baseUrl: 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/',
+          url: 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/getting-started.html',
+          expected: 'getting-started.html',
+        },
+        {
+          baseUrl: 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/',
+          url: 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/using/build-systems.html',
+          expected: 'using/build-systems.html',
+        },
+        {
+          baseUrl: 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/',
+          url: 'https://docs.spring.io/spring-boot/docs/2.7.5/reference/html/actuator/endpoints.html',
+          expected: 'actuator/endpoints.html',
+        },
+      ]
+
+      testCases.forEach(({ baseUrl, url, expected }) => {
+        expect(calculateRelativePath(baseUrl, url)).toBe(expected)
+      })
+    })
+
+    it('should handle Vue.js documentation structure', () => {
+      const baseUrl = 'https://vuejs.org/guide/'
+      const url = 'https://vuejs.org/guide/essentials/reactivity-fundamentals.html'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('essentials/reactivity-fundamentals.html')
+    })
+
+    it('should handle React documentation structure', () => {
+      const baseUrl = 'https://react.dev/learn/'
+      const url = 'https://react.dev/learn/thinking-in-react'
+
+      const result = calculateRelativePath(baseUrl, url)
+      expect(result).toBe('thinking-in-react')
     })
   })
 })
