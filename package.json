@@ -1,7 +1,7 @@
 {
   "name": "jina-crawler",
   "type": "module",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "An LLM-friendly crawler from Jina.",
   "author": "zcf0508",
   "license": "MIT",
