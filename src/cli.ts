@@ -28,9 +28,14 @@ const main = defineCommand({
       type: 'string',
       description: 'Visite `https://jina.ai/reader/` to get your token.',
     },
+    debug: {
+      type: 'boolean',
+      description: 'Enable debug mode.',
+      default: false,
+    },
   },
   async run({ args }) {
-    const { baseUrl, name, maxDepth: _maxDepth, token: _token } = args
+    const { baseUrl, name, maxDepth: _maxDepth, token: _token, debug } = args
 
     const depth = Number.parseInt(_maxDepth, 10)
 
@@ -41,7 +46,7 @@ const main = defineCommand({
       token = process.env.JINA_READER_TOKEN
     }
 
-    await startCrawling(baseUrl, name, depth, token)
+    await startCrawling(baseUrl, name, depth, token, debug)
   },
 })
 

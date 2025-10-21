@@ -314,9 +314,14 @@ async function crawl(
   depth: number,
   maxDepth: number,
   token?: string,
+  debug = false,
 ): Promise<void> {
   // Normalize URL to handle hash fragments intelligently
   const normalizedUrl = normalizeUrl(url)
+
+  if (debug) {
+    consola.info(`Crawling URL: ${normalizedUrl} at depth: ${depth}`)
+  }
 
   if (depth > maxDepth || visited.has(normalizedUrl)) {
     return
@@ -327,15 +332,17 @@ async function crawl(
 
   // check if file already exists
   if (fs.existsSync(filePath)) {
-    consola.log(`Reading existing file: ${filePath}`)
-    const content = fs.readFileSync(filePath, 'utf-8')
-    const mdLinks = extractLinks(content, normalizedUrl, baseUrl)
-    // Apply concurrency limit to prevent memory overflow
-    await Promise.all(
-      mdLinks.map(link =>
-        crawlLimit(() => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)),
-      ),
-    )
+    requestScheduler.addRequest(async () => {
+      consola.log(`Reading existing file: ${filePath}`)
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const mdLinks = extractLinks(content, normalizedUrl, baseUrl)
+      // Apply concurrency limit to prevent memory overflow
+      await Promise.all(
+        mdLinks.map(link =>
+          crawlLimit(() => crawl(link, name, baseUrl, visited, depth + 1, maxDepth, token)),
+        ),
+      )
+    })
     return
   }
 
@@ -419,7 +426,8 @@ export async function startCrawling(
   name: string,
   maxDepth: number,
   token?: string,
+  debug = false,
 ): Promise<void> {
   const visited = new Set<string>()
-  await crawl(baseUrl, name, baseUrl, visited, 0, maxDepth, token)
+  await crawl(baseUrl, name, baseUrl, visited, 0, maxDepth, token, debug)
 }
